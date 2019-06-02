@@ -1,8 +1,11 @@
 ﻿{
-  "Id": "TaiwuEditor",
-  "DisplayName": "太吾修改器",
-  "Version": "1.0.9.9",
-  "author": "babel92/ciwei100000",
-  "AssemblyName": "TaiwuEditor.dll",
-  "EntryMethod": "TaiwuEditor.Main.Load"
+    "Id": "TaiwuEditor",
+    "DisplayName": "太吾修改器",
+    "Version": "1.0.10.0",
+    "author": "babel92/ciwei100000",
+    "AssemblyName": "TaiwuEditor.dll",
+    "EntryMethod": "TaiwuEditor.Main.Load",
+    "LastUpdate": "ciwei100000",
+    "HomePage": "https://github.com/ciwei100000/Taiwu_mods/tree/master/TaiwuEditor",
+    "Repository": "https://raw.githubusercontent.com/ciwei100000/Taiwu_mods/master/Repository.json"
 }

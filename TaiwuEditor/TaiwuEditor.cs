@@ -1,5 +1,4 @@
-﻿#define DEBUG
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Timers;
@@ -11,29 +10,67 @@ namespace TaiwuEditor
 {
     public static class Main
     {
+        public static bool enabled;
+        private static UnityModManager.ModEntry.ModLogger logger;
+        private static Timer timer;
+        private static MethodInfo MassageWindow_DoEvent;
+        private static Settings settings;
+        private static readonly StoryTyp[] storytyps =
+        {
+            new StoryTyp(new HashSet<int>{101,102,103,104,105,106,107,108,109,110,111,112}, "外道巢穴"),
+            new StoryTyp(new HashSet<int>{1,10001,10005,10006},"促织高鸣"),
+            new StoryTyp(new HashSet<int>{2,3,4,5},"静谧竹庐/深谷出口/英雄猴杰/古墓仙人"),
+            new StoryTyp(new HashSet<int>{6,7,8},"大片血迹"),
+            new StoryTyp(new HashSet<int>{11001,11002,11003,11004,11005,11006,11007,11008,11009,11010,11011,11012,11013,11014},"奇书"),
+            new StoryTyp(new HashSet<int>{3007,3014,3107,3114,3207,3214,3307,3314,3407,3414,3421,3428,4004,4008,4012,4016,4020,
+                4024,4028,4032,4036,4040,4044,4048,4052,4056,4060,4064,4068,4072,4076,4080,4084,4088,4092,4096,4207,4214,4221,
+                4228,4235,4242},"天材地宝"),
+            //new StoryTyp(new HashSet<int>{5001,5002,5003,5004,5005},"门派争端"),
+            new StoryTyp(new HashSet<int>{20001,20002,20003,20004,20005,20006,20007,20008,20009},"剑冢")
+        };
+        private static bool uiIsShow = false;
+        private static bool bindingKey = false;
+
         public static bool Load(UnityModManager.ModEntry modEntry)
         {
             HarmonyInstance harmonyInstance = HarmonyInstance.Create(modEntry.Info.Id);
             harmonyInstance.PatchAll(Assembly.GetExecutingAssembly());
-            Main.settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
-            Main.logger = modEntry.Logger;
-            modEntry.OnGUI = new Action<UnityModManager.ModEntry>(Main.OnGUI);
-            modEntry.OnSaveGUI = new Action<UnityModManager.ModEntry>(Main.OnSaveGUI);
+            settings = UnityModManager.ModSettings.Load<Settings>(modEntry);
+
+            logger = modEntry.Logger;
+            modEntry.OnGUI = OnGUI;
+            modEntry.OnSaveGUI = OnSaveGUI;
+            modEntry.OnToggle = OnToggle;
+
+            if (!uiIsShow)
+            {
+                UI.Load(modEntry, settings, storytyps);
+                uiIsShow = true;
+            }
 
             // 用于在“奇遇直达终点”功能
-            Main.MassageWindow_DoEvent = typeof(MassageWindow).GetMethod("DoEvent", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (Main.MassageWindow_DoEvent == null)
+            MassageWindow_DoEvent = typeof(MassageWindow).GetMethod("DoEvent", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (MassageWindow_DoEvent == null)
             {
-                Main.logger.Log("获取MassageWindow.DoEvent失败");
+                logger.Log("获取MassageWindow.DoEvent失败");
             }
-            // 奇遇直接到终点功能中不生效的奇遇
-            Main.ExcludedStory();
+            // 初始化直接到终点的奇遇的ID清单
+            if (settings.includedStoryTyps == null || settings.includedStoryTyps.Length != storytyps.Length)
+            {
+                settings.includedStoryTyps = new bool[storytyps.Length];
+            }
 
             // 用于锁定每月行动点数（每秒重置一次行动点数）
-            Main.timer = new Timer(1000);
-            Main.timer.Elapsed += Main.Timer_Elapsed;
-            Main.timer.Start();
+            timer = new Timer(1000);
+            timer.Elapsed += Main.Timer_Elapsed;
+            timer.Start();
 
+            return true;
+        }
+
+        public static bool OnToggle(UnityModManager.ModEntry modEntry, bool value)
+        {
+            enabled = value;
             return true;
         }
 
@@ -45,73 +82,61 @@ namespace TaiwuEditor
         // 主界面
         public static void OnGUI(UnityModManager.ModEntry modEntry)
         {
-            GUILayout.Label("<color=#87CEEB>功能选择：</color>");
-            GUILayout.BeginHorizontal("box", new GUILayoutOption[0]);
-            Main.settings.funcChoose = GUILayout.SelectionGrid(Main.settings.funcChoose, new string[] 
+            Event e = Event.current;
+            if (e.isKey && Input.anyKeyDown)
             {
-                "<color=#FFA500>基本功能</color>",
-                "<color=#FFA500>属性修改</color>"
-            }, 2);            
-            GUILayout.EndHorizontal();
-            switch (Main.settings.funcChoose)
-            {
-                case 1:
-                    UI.BasePropertiesUi(ref Main.settings);
-                    break;
-                default:
-                    UI.SettingsUi(ref Main.settings);
-                    break;
-            }
-            
-        }
-
-        private static UnityModManager.ModEntry.ModLogger logger;
-
-        private static Timer timer;
-
-        private static MethodInfo MassageWindow_DoEvent;
-
-        private static Settings settings;
-
-        private static List<int> excludedStoryIds;
-
-
-        // 奇遇直接到终点功能中不生效的奇遇
-        private static void ExcludedStory()
-        {
-            Main.excludedStoryIds = new List<int>();
-            // 9(七元符图)，10002-10004(商贾云集)，10007-10009(沿街卖艺)，10010-10012(酒宴)，10013-10015(茶会) 不直接到终点
-            Main.excludedStoryIds.Add(9);
-            for (int i = 10002; i < 10016; i++)
-            {
-                Main.excludedStoryIds.Add(i);
-                if (i == 10004)
+                if (bindingKey)
                 {
-                    // 不添加10005(促织高鸣), 10006 (促织高鸣)
-                    i = 10006;
+                    if ((e.keyCode >= KeyCode.A && e.keyCode <= KeyCode.Z)
+                        || (e.keyCode >= KeyCode.F1 && e.keyCode <= KeyCode.F12)
+                        || (e.keyCode >= KeyCode.Alpha0 && e.keyCode <= KeyCode.Alpha9)
+                        )
+                    {
+                        Main.settings.hotKey = e.keyCode;
+                    }
+                    bindingKey = false;
                 }
             }
+            if (!enabled)
+            {
+                GUILayout.Box("<color=#E4504D>MOD未激活，请检查右侧Status是否为绿灯，如未激活请点击On/Off列的按钮激活</color>");
+            }
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("设置快捷键：", GUILayout.Width(130));
+            if (GUILayout.Button((bindingKey ? "请按键" : settings.hotKey.ToString()),
+                GUILayout.Width(80)))
+            {
+                bindingKey = !bindingKey;
+            }
+            GUILayout.Label("（支持0-9,A-Z,F1-F12）");
+            GUILayout.EndHorizontal();
         }
 
-        // 锁定时间
+        /// <summary>
+        /// 锁定时间
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private static void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            if (DateFile.instance != null && Main.settings.lockTime)
+            if (enabled && DateFile.instance != null && Main.settings.lockTime)
             {
                 DateFile.instance.dayTime = DateFile.instance.GetMaxDayTime();
             }
         }
 
-        // 最大好感和最大印象
+        /// <summary>
+        /// 最大好感和最大印象
+        /// </summary>
         [HarmonyPatch(typeof(MassageWindow), "SetMassageWindow")]
         private static class SAW_Hook
         {
             private static bool Prefix(int[] baseEventDate)
             {
                 // 最大好感
-                if (Main.settings.lockMaxOutRelation)
+                if (enabled && Main.settings.lockMaxOutRelation)
                 {
-                    MassageWindow.instance.mianEventDate = (int[])baseEventDate.Clone();
+                    MassageWindow.instance.mianEventDate = (int[]) baseEventDate.Clone();
                     // 主事件ID
                     int mainEventId = baseEventDate[2];
                     // 事件类型
@@ -141,7 +166,7 @@ namespace TaiwuEditor
                     }
                 }
                 // 最大印象
-                if (Main.settings.lockMaxLifeFace)
+                if (enabled && Main.settings.lockMaxLifeFace)
                 {
                     int mainEventId = baseEventDate[2];
                     int eventType = DateFile.instance.ParseInt(DateFile.instance.eventDate[mainEventId][2]);
@@ -195,26 +220,30 @@ namespace TaiwuEditor
             }
         }
 
-        // 锁定戒心为0
+        /// <summary>
+        /// 锁定戒心为0
+        /// </summary>
         [HarmonyPatch(typeof(DateFile), "GetActorWariness")]
         private static class ZW_Hook
         {
             private static void Postfix(ref int __result)
             {
-                if (Main.settings.lockZeroWariness)
+                if (enabled && Main.settings.lockZeroWariness)
                 {
                     __result = 0;
                 }
             }
         }
 
-        // 快速修习
+        /// <summary>
+        /// 快速修习
+        /// </summary>
         [HarmonyPatch(typeof(HomeSystem), "StudySkillUp")]
         private static class SSU_Hook
         {
             private static bool Prefix(int ___studySkillId, int ___studySkillTyp, ref HomeSystem __instance)
             {
-                if (!Main.settings.lockMaxOutProficiency || ___studySkillId <= 0 || ___studySkillTyp <= 0 || ___studySkillTyp > 17)
+                if (!enabled || !Main.settings.lockMaxOutProficiency || ___studySkillId <= 0 || ___studySkillTyp <= 0 || ___studySkillTyp > 17)
                 {
                     return true;
                 }
@@ -268,13 +297,15 @@ namespace TaiwuEditor
             }
         }
 
-        // 奇遇直接到终点
+        /// <summary>
+        /// 奇遇直接到终点
+        /// </summary>
         [HarmonyPatch(typeof(StorySystem), "OpenStory")]
         private static class OS_Hook
         {
             private static bool Prefix(ref StorySystem __instance)
             {
-                if (!Main.settings.lockFastQiyuCompletion)
+                if (!enabled || !Main.settings.lockFastQiyuCompletion)
                 {
                     return true;
                 }
@@ -284,8 +315,24 @@ namespace TaiwuEditor
 #if DEBUG
                     Main.logger.Log($"[TaiwuEditor]OpenStory: StoryId: {storyId}");
 #endif                    
-                    if (storyId > 0 && !Main.excludedStoryIds.Contains(storyId))
+                    if (storyId > 0)
                     {
+                        bool storyIdExist = false;
+                        for(int i=0; i < settings.includedStoryTyps.Length; i++)
+                        {
+                            if (settings.includedStoryTyps[i])
+                            {
+                                if (storytyps[i].IsContainStoryId(storyId))
+                                {
+                                    storyIdExist = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!storyIdExist)
+                        {
+                            return true;
+                        }
                         // 关闭奇遇窗口
                         __instance.ClossToStoryMenu();
                         // 终点的事件ID
@@ -325,21 +372,24 @@ namespace TaiwuEditor
             }
         }
 
-        // 背包最大载重
+        /// <summary>
+        /// 背包最大载重
+        /// </summary>
         [HarmonyPatch(typeof(ActorMenu), "GetMaxItemSize")]
         private static class GMIS_Hook
         {
             private static void Postfix(ref int key, ref int __result)
             {
-                bool flag = !Main.settings.lockNeverOverweigh || DateFile.instance.mianActorId != key;
-                if (!flag)
+                if (enabled && Main.settings.lockNeverOverweigh && DateFile.instance.mianActorId == key)
                 {
                     __result = 999999999;
                 }
             }
         }
 
-        // 快速读书
+        /// <summary>
+        /// 快速读书
+        /// </summary>
         [HarmonyPatch(typeof(HomeSystem), "StartReadBook")]
         private static class SRB_Hook
         {
@@ -348,7 +398,7 @@ namespace TaiwuEditor
 #if DEBUG
                 Main.logger.Log($"[TaiwuEditor]快速读书: id: {___readBookId}，SkillTyp: {___studySkillTyp}");
 #endif
-                if (!Main.settings.lockFastRead || ___studySkillTyp <= 0 || ___studySkillTyp > 17 || ___readBookId <= 0)
+                if (!enabled || !Main.settings.lockFastRead || ___studySkillTyp <= 0 || ___studySkillTyp > 17 || ___readBookId <= 0)
                 {
                     return true;
                 }
@@ -360,6 +410,59 @@ namespace TaiwuEditor
                 }
             }
         }
+
+        /// <summary>
+        /// 锁定门派支持度
+        /// </summary>
+        [HarmonyPatch(typeof(DateFile), "GetGangPartValue")]
+        private static class GangPartValue_Hook
+        {
+            private static bool Prefix(int gangId, ref int __result)
+            {
+                if (!Main.enabled || !settings.lockGangMaxPartValue)
+                {
+                    return true;
+                }
+                // 太吾村没有支持度
+                __result = (gangId == 16) ? 0 : (settings.customGangMaxPartValue == 0) ? DateFile.instance.GetMaxWorldValue() : settings.customGangMaxPartValue * 10;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 锁定地区恩义
+        /// </summary>
+        [HarmonyPatch(typeof(DateFile), "GetBasePartValue")]
+        private static class GetBasePartValue_Hook
+        {
+            // 返回锁定的值
+            private static bool Prefix(ref int __result)
+            {
+                if (!Main.enabled || !settings.lockBaseMaxPartValue)
+                {
+                    return true;
+                }
+                __result = (settings.customBaseMaxPartValue == 0) ? DateFile.instance.GetMaxWorldValue() : settings.customBaseMaxPartValue * 10;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 锁定地区恩义
+        /// </summary>
+        [HarmonyPatch(typeof(DateFile), "SetGangValue")]
+        private static class SetGangValue_Hook
+        {
+            // 阻止地区恩义减少
+            private static bool Prefix(ref int value)
+            {
+                if (Main.enabled && settings.lockBaseMaxPartValue && value < 0)
+                {
+                    value = 0;
+                }
+                return true;
+            }
+        }
     }
 
     public class Settings : UnityModManager.ModSettings
@@ -368,44 +471,47 @@ namespace TaiwuEditor
         {
             UnityModManager.ModSettings.Save<Settings>(this, modEntry);
         }
-        // 功能选择，0是基本功能，1是修改属性
-        public int funcChoose = 0;
-
-        // 选择修改哪个人物的属性，0太吾，1上一个打开菜单的人物，2自定义人物
-        public int basePropertyChoose = 0;
-
-        // 显示在自定义人物ID输入框的值
-        public string displayedActorId = "0";
-
-        // 想要修改属性的NPC ID
-        public int actorId = 0;
 
         // 锁定时间
         public bool lockTime = false;
-
         // 快速读书
         public bool lockFastRead = false;
-
         // 快速读书每次篇数
         public int pagesPerFastRead = 10;
-
         // 快速修习
         public bool lockMaxOutProficiency = false;
-
         // 奇遇直接到终点
         public bool lockFastQiyuCompletion = false;
-
+        public bool[] includedStoryTyps;
+        public bool includedAllStoryTyps = false;
         // 背包无限
         public bool lockNeverOverweigh = false;
-
         // 见面最大化好感
         public bool lockMaxOutRelation = false;
-
         // 见面最大化印象
         public bool lockMaxLifeFace = false;
-
         // 锁定戒心为0
         public bool lockZeroWariness = false;
+        // 锁定门派支持度
+        public bool lockGangMaxPartValue = false;
+        public int customGangMaxPartValue = 0;
+        // 锁定地区恩义
+        public bool lockBaseMaxPartValue = false;
+        public int customBaseMaxPartValue = 0;
+        // 快捷键
+        public KeyCode hotKey = KeyCode.F6;
     }
 
+    public class StoryTyp
+    {
+        private HashSet<int> storyIds;
+        public string Name { get; private set; }
+        public StoryTyp(HashSet<int> storyIds, string name)
+        {
+            this.storyIds = storyIds;
+            Name = name;
+        }
+
+        public bool IsContainStoryId(int storyId) => storyIds.Contains(storyId);
+    }
 }
