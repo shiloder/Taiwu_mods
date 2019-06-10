@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -16,7 +15,7 @@ using UnityEngine.UI;
 
 namespace Sth4nothing.SLManager
 {
-    [HarmonyPatch(typeof(Encoding), "GetEncoding", new Type[] {typeof(int)})]
+    [HarmonyPatch(typeof(Encoding), "GetEncoding", new Type[] { typeof(int) })]
     public static class Encoding_GetEncoding_Path
     {
         public static bool Prefix(int codepage, ref Encoding __result)
@@ -41,7 +40,7 @@ namespace Sth4nothing.SLManager
                 Transform parent = GameObject.Find("ResourceBack").transform;
                 //
                 float startX = 1520f;
-                float size = 40f;
+                float size = 38f;
                 Vector2 iconSize = new Vector2(size, size);
 
                 //快速存档
@@ -88,6 +87,13 @@ namespace Sth4nothing.SLManager
                     Resources.Load<Sprite>("Graphics/Buttons/StartGameButton_NoColor");
                 loadBtnForList.GetComponent<RectTransform>().sizeDelta = iconSize;
                 loadBtnForList.AddComponent<MyPointerClick>();
+
+                //解读奇书
+                //LegendBook,724
+                startX += size;
+                GameObject legendBookButton = MissionSystem.instance.legendBookBtn.gameObject;
+                legendBookButton.GetComponent<RectTransform>().sizeDelta = iconSize;
+                legendBookButton.transform.localPosition = new Vector3(startX, -30f, 0);
 
                 //产业视图
                 //HomeButton,612
@@ -193,11 +199,7 @@ namespace Sth4nothing.SLManager
             switch (OnClick.instance.ID)
             {
                 case 4646:
-                    DateFile.instance.SetEvent(new[] {0, -1, 1001}, true, true);
-                    DateFile.instance.Initialize(SaveDateFile.instance.dateId);
-                    YesOrNoWindow.instance.CloseYesOrNoWindow();
-                    YesOrNoWindow.instance.yesOrNoWindow.sizeDelta = new Vector2(720f, 280f);
-                    OnClick.instance.Over = true;
+                    LoadFile.DoLoad(SaveDateFile.instance.dateId);
                     break;
             }
         }
@@ -431,10 +433,19 @@ namespace Sth4nothing.SLManager
             yield return new WaitForSeconds(0.01f);
             if (file.EndsWith(".zip"))
                 Unzip(file);
-
-            DateFile.instance.SetEvent(new int[] {0, -1, 1001}, true, true);
-            DateFile.instance.Initialize(SaveManager.DateId);
+            DoLoad(SaveManager.DateId);
         }
+
+        /// <summary>
+        /// 执行存档读取操作
+        /// </summary>
+        public static void DoLoad(int dataId)
+        {
+            UIDate.instance.gameObject.SetActive(false);
+            MainMenu.instance.SetLoadIndex(dataId);
+        }
+
+
 
         /// <summary>
         /// 解压存档到游戏存档目录
@@ -633,7 +644,7 @@ namespace Sth4nothing.SLManager
     [HarmonyPatch(typeof(WindowManage), "WindowSwitch")]
     public static class WindowManage_WindowSwitch_Patch
     {
-        [HarmonyBefore(new[] {"CharacterFloatInfo"})]
+        [HarmonyBefore(new[] { "CharacterFloatInfo" })]
         public static void Postfix(bool on, GameObject tips,
             ref Text ___informationMassage, ref Text ___informationName,
             ref int ___tipsW, ref bool ___anTips)
@@ -745,7 +756,7 @@ namespace Sth4nothing.SLManager
                 num = i + 1;
             }
             Debug.Log("完成保存存档操作,开始执行随档备份...");
-            
+
             SaveManager.Backup(SaveManager.AfterSaveBackup);
         }
 

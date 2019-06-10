@@ -203,5 +203,11 @@ namespace Sth4nothing.SLManager
         {
             typeof(T).GetField(field, Flags)?.SetValue(instance, value);
         }
+
+        public static T2 GetValue<T1, T2>(string field)
+        {
+            return (T2) typeof(T1).GetField(field, Flags)?.GetValue(null);
+        }
+
     }
 }
