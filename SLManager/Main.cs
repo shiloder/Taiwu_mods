@@ -24,6 +24,7 @@ namespace Sth4nothing.SLManager
     {
         public static bool Enabled { get; private set; }
         public static bool ForceSave = false;
+        public static bool onLoad = false;
 
         private static string logPath;
         private static readonly string[] AutoSaveState = {"关闭", "启用"};

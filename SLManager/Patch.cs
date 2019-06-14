@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -203,6 +204,61 @@ namespace Sth4nothing.SLManager
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// 读档
+    /// </summary>
+    [HarmonyPatch(typeof(DateFile), "LoadLegendBook")]
+    public static class DateFile_LoadLegendBook_Patch
+    {
+        /// <summary>
+        /// 需要清除的实例
+        /// </summary>
+        // 游戏内载入存档时很多游戏实例依然存在，它们会不停调用SingletonObject.getInstance<T>()。
+        // 若T的实例未创建，则getInstance<T>方法在第一次被调用时会创建T的实例。这导致尽管在载入存
+        // 档前执行SingletonObject.ClearInstances()清除所有实例，载入存档时还会存在冲突的实例。
+        // 所以在DateFile.LoadLegendBook()方法前将有可能还存在的冲突实例清除掉以便正常载入存档。
+        private static readonly string[] instancesToRemove =
+        {
+            "JuniorXiangshuSystem",
+            "LegendBookSystem",
+            "TaichiDiscSystem",
+            "SpecialEffectSystem" // 目前(游戏版本：V0.2.2.2)只有这个类的实例会有残留，UIDate gameObject 设置为inactive解决
+        };
+
+        private static bool Prefix(DateFile.LegendBook loadDate)
+        {
+            if (Main.onLoad)
+            {
+                Main.onLoad = false;
+                Dictionary<string, object> m_SingletonMap = ReflectionMethod.GetValue<SingletonObject, Dictionary<string, object>>("m_SingletonMap");
+                List<Type> dontClearList = ReflectionMethod.GetValue<SingletonObject, List<Type>>("dontClearList");
+#if DEBUG
+                GameObject m_Container = ReflectionMethod.GetValue<SingletonObject, GameObject>("m_Container");
+                Main.Logger.Log($"DateFile_Loadloadlegend: Is m_Container null? {m_Container == null}");
+                foreach(string key in m_SingletonMap.Keys)
+                {
+                    Main.Logger.Log($"DateFile_Loadloadlegend m_SingletonMap keys {key}");
+                }
+#endif
+                // 清除需要清除的实例
+                for (int i = 0; i < instancesToRemove.Length; i++)
+                {
+                    if (m_SingletonMap.TryGetValue(instancesToRemove[i], out object item) && !dontClearList.Contains(item))
+                    {
+                        (item as IDisposable)?.Dispose();
+                        if (item.GetType().IsSubclassOf(typeof(Component)))
+                        {
+                            UnityEngine.Object.Destroy(item as Component);
+                        }
+                        m_SingletonMap.Remove(instancesToRemove[i]);
+                    }
+                }
+            }
+            return true;
+        }
+
     }
 
     /// <summary>
@@ -441,6 +497,7 @@ namespace Sth4nothing.SLManager
         /// </summary>
         public static void DoLoad(int dataId)
         {
+            Main.onLoad = true;
             UIDate.instance.gameObject.SetActive(false);
             MainMenu.instance.SetLoadIndex(dataId);
         }

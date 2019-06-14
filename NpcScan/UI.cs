@@ -160,7 +160,11 @@ namespace NpcScan
         private void Update()
         {
             if (mOpened)
+            {
                 mLogTimer += Time.unscaledDeltaTime;
+                // 自适应游戏窗口变化
+                mWindowRect.width = windowWidth();
+            }
             if ((Input.GetKey(KeyCode.RightControl) || Input.GetKey(KeyCode.LeftControl))
                 && Input.GetKeyUp(Main.settings.key))
             {
