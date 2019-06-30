@@ -1,412 +1,61 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityModManagerNet;
 
 namespace TaiwuEditor
 {
-    class Helper
+    internal abstract class Helper
     {
-        private static readonly Dictionary<int, string> fieldNames = new Dictionary<int, string>()
+        protected static readonly Dictionary<int, string> textColors = new Dictionary<int, string>
         {
-            { -1, "历练"},
-            { 11, "年龄"},
-            { 12, "健康"},
-            { 13, "基础寿命"},
-            { 61, "膂力"},
-            { 62, "体质"},
-            { 63, "灵敏"},
-            { 64, "根骨"},
-            { 65, "悟性"},
-            { 66, "定力"},
-            {401, "食材"},
-            {402, "木材"},
-            {403, "金石"},
-            {404, "织物"},
-            {405, "草药"},
-            {406, "金钱"},
-            {407, "威望"},
-            {501, "音律"},
-            {502, "弈棋"},
-            {503, "诗书"},
-            {504, "绘画"},
-            {505, "术数"},
-            {506, "品鉴"},
-            {507, "锻造"},
-            {508, "制木"},
-            {509, "医术"},
-            {510, "毒术"},
-            {511, "织锦"},
-            {512, "巧匠"},
-            {513, "道法"},
-            {514, "佛学"},
-            {515, "厨艺"},
-            {516, "杂学"},
-            {601, "内功"},
-            {602, "身法"},
-            {603, "绝技"},
-            {604, "拳掌"},
-            {605, "指法"},
-            {606, "腿法"},
-            {607, "暗器"},
-            {608, "剑法"},
-            {609, "刀法"},
-            {610, "长兵"},
-            {611, "奇门"},
-            {612, "软兵"},
-            {613, "御射"},
-            {614, "乐器"},
-            {706, "无属性内力"}
+            { 10000, "<color=#323232FF>" },
+            { 10001, "<color=#4B4B4BFF>" },
+            { 10002, "<color=#B97D4BFF>" },
+            { 10003, "<color=#9B8773FF>" },
+            { 10004, "<color=#AF3737FF>" },
+            { 10005, "<color=#FFE100FF>" },
+            { 10006, "<color=#FF44A7FF>" },
+            { 20001, "<color=#E1CDAAFF>" },
+            { 20002, "<color=#8E8E8EFF>" }, // 九品灰
+            { 20003, "<color=#FBFBFBFF>" }, // 八品白
+            { 20004, "<color=#6DB75FFF>" }, // 七品绿
+            { 20005, "<color=#8FBAE7FF>" }, // 六品蓝
+            { 20006, "<color=#63CED0FF>" }, // 五品青
+            { 20007, "<color=#AE5AC8FF>" }, // 四品紫
+            { 20008, "<color=#E3C66DFF>" }, // 三品黄
+            { 20009, "<color=#F28234FF>" }, // 二品橙
+            { 20010, "<color=#E4504DFF>" }, // 一品红
+            { 20011, "<color=#EDA723FF>" }
         };
+        /// <summary>标签的样式</summary>
+        public static GUIStyle LabelStyle { get; set; }
+        /// <summary>按钮的样式</summary>
+        public static GUIStyle ButtonStyle { get; set; }
+        /// <summary>输入框的样式</summary>
+        public static GUIStyle TextFieldStyle { get; set; }
+        /// <summary>选项的样式</summary>
+        public static GUIStyle ToggleStyle { get; set; }
+        /// <summary>日志</summary>
+        protected UnityModManager.ModEntry.ModLogger logger;
+        /// <summary>当前编辑的角色ID</summary>
+        protected int currentActorId = -1;
 
-        private const string errorString = "无人物数据";
+        protected Helper(UnityModManager.ModEntry.ModLogger logger) => this.logger = logger;
 
-        public float fieldHelperLblWidth = 90f;
-        public float fieldHelperTextWidth = 120f;
-        public float fieldHelperBtnWidth = 80f;
-
-        private readonly HashSet<int> activeFieldsResid;
-        private readonly Dictionary<int, string> fieldValues;
-        private int lastActorId = -1;
-        private DateFile lastDateFile;
-        private ActorMenu lastActorMenu;
-        private Dictionary<int, string> lastActorDate;
-
-        private UnityModManager.ModEntry.ModLogger logger;
-
-        public GUIStyle LabelStyle { get; set; }
-        public GUIStyle ButtonStyle { get; set; }
-        public GUIStyle TextFieldStyle { get; set; }
-
-        //
-        public Helper(UnityModManager.ModEntry.ModLogger logger)
-        {
-            this.logger = logger;
-            activeFieldsResid = new HashSet<int>(fieldNames.Count);
-            fieldValues = new Dictionary<int, string>(fieldNames.Count);
-        }
+        public abstract void Update(int actorId);
 
         /// <summary>
-        /// 属性修改框框架
+        /// 治疗解毒理气
         /// </summary>
-        /// <param name="resid">对应属性的编号</param>
-        public void FieldHelper(int resid)
-        {
-            GUILayout.BeginHorizontal("Box");
-            if (fieldNames.TryGetValue(resid, out string fieldname))
-            {
-                if (LabelStyle == null)
-                    GUILayout.Label(fieldname, GUILayout.Width(fieldHelperLblWidth));
-                else
-                    GUILayout.Label(fieldname, LabelStyle, GUILayout.Width(fieldHelperLblWidth));
-                activeFieldsResid.Add(resid);
-                if (fieldValues.TryGetValue(resid, out string fieldValue))
-                {
-                    if (TextFieldStyle == null)
-                        fieldValues[resid] = GUILayout.TextField(fieldValue, GUILayout.Width(fieldHelperTextWidth));
-                    else
-                        fieldValues[resid] = GUILayout.TextField(fieldValue, TextFieldStyle, GUILayout.Width(fieldHelperTextWidth));
-                    if (ButtonStyle == null)
-                    {
-                        if (GUILayout.Button("修改", GUILayout.Width(fieldHelperBtnWidth)))
-                        {
-                            SetFieldValue(resid);
-                            UpdateField(resid);
-                        }
-                    }
-                    else
-                    {
-                        if (GUILayout.Button("修改", ButtonStyle, GUILayout.Width(fieldHelperBtnWidth)))
-                        {
-                            SetFieldValue(resid);
-                            UpdateField(resid);
-                        }
-                    }
-                }
-                else
-                {
-                    if (TextFieldStyle == null)
-                        GUILayout.TextField(errorString, GUILayout.Width(fieldHelperTextWidth));
-                    else
-                        GUILayout.TextField(errorString, TextFieldStyle, GUILayout.Width(fieldHelperTextWidth));
-                }
-            }
-            else
-            {
-                GUILayout.Label("FieldName不存在");
-            }
-            GUILayout.EndHorizontal();
-        }
-
-        public void FieldHelper(int resid, int max)
-        {
-            GUILayout.BeginHorizontal("Box");
-            if (fieldNames.TryGetValue(resid, out string fieldname))
-            {
-                if (LabelStyle == null)
-                    GUILayout.Label(fieldname, GUILayout.Width(fieldHelperLblWidth));
-                else
-                    GUILayout.Label(fieldname, LabelStyle, GUILayout.Width(fieldHelperLblWidth));
-                activeFieldsResid.Add(resid);
-                if (fieldValues.TryGetValue(resid, out string fieldValue))
-                {
-                    GUILayout.BeginHorizontal();
-                    if (TextFieldStyle == null)
-                        fieldValues[resid] = GUILayout.TextField(fieldValue, GUILayout.Width(fieldHelperTextWidth));
-                    else
-                        fieldValues[resid] = GUILayout.TextField(fieldValue, TextFieldStyle, GUILayout.Width(fieldHelperTextWidth));
-                    if(LabelStyle == null)
-                    {
-                        GUILayout.Label($"/<color=#FFA500>{max}</color>", GUILayout.ExpandWidth(false));
-                    }
-                    else
-                    {
-                        LabelStyle.fontStyle = FontStyle.Bold;
-                        GUILayout.Label($"/<color=#FFA500>{max}</color>", LabelStyle, GUILayout.ExpandWidth(false));
-                        LabelStyle.fontStyle = FontStyle.Normal;
-                    }
-                    GUILayout.EndHorizontal();
-                    if (ButtonStyle == null)
-                    {
-                        if (GUILayout.Button("修改", GUILayout.Width(fieldHelperBtnWidth)))
-                        {
-                            SetFieldValue(resid, 0, max);
-                            UpdateField(resid);
-                        }
-                    }
-                    else
-                    {
-                        if (GUILayout.Button("修改", ButtonStyle, GUILayout.Width(fieldHelperBtnWidth)))
-                        {
-                            SetFieldValue(resid, 0, max);
-                            UpdateField(resid);
-                        }
-                    }
-                }
-                else
-                {
-                    if (TextFieldStyle == null)
-                        GUILayout.TextField(errorString, GUILayout.Width(fieldHelperTextWidth));
-                    else
-                        GUILayout.TextField(errorString, TextFieldStyle, GUILayout.Width(fieldHelperTextWidth));
-                }
-            }
-            else
-            {
-                GUILayout.Label("FieldName不存在");
-            }
-            GUILayout.EndHorizontal();
-        }
-
-        /// <summary>
-        /// 属性修改框框架
-        /// </summary>
-        /// <param name="resid">对应属性的编号</param>
-        /// <param name="min"></param>
-        /// <param name="max"></param>
-        public void FieldHelper(int resid, int min, int max)
-        {
-            GUILayout.BeginHorizontal("Box");
-            if (fieldNames.TryGetValue(resid, out string fieldname))
-            {
-                if (LabelStyle == null)
-                    GUILayout.Label($"{fieldname}(<color=#FFA500>{min}~{max}</color>)", GUILayout.Width(fieldHelperLblWidth));
-                else
-                    GUILayout.Label($"{fieldname}(<color=#FFA500>{min}~{max}</color>)", LabelStyle, GUILayout.Width(fieldHelperLblWidth));
-                activeFieldsResid.Add(resid);
-                if (fieldValues.TryGetValue(resid, out string fieldValue))
-                {
-                    if (TextFieldStyle == null)
-                        fieldValues[resid] = GUILayout.TextField(fieldValue, GUILayout.Width(fieldHelperTextWidth));
-                    else
-                        fieldValues[resid] = GUILayout.TextField(fieldValue, TextFieldStyle, GUILayout.Width(fieldHelperTextWidth));
-                    if (ButtonStyle == null)
-                    {
-                        if (GUILayout.Button("修改", GUILayout.Width(fieldHelperBtnWidth)))
-                        {
-                            SetFieldValue(resid, min, max);
-                            UpdateField(resid);
-                        }
-                    }
-                    else
-                    {
-                        if (GUILayout.Button("修改", ButtonStyle, GUILayout.Width(fieldHelperBtnWidth)))
-                        {
-                            SetFieldValue(resid, min, max);
-                            UpdateField(resid);
-                        }
-                    }
-                }
-                else
-                {
-                    if (TextFieldStyle == null)
-                        GUILayout.TextField(errorString, GUILayout.Width(fieldHelperTextWidth));
-                    else
-                        GUILayout.TextField(errorString, TextFieldStyle, GUILayout.Width(fieldHelperTextWidth));
-                }
-            }
-            else
-            {
-                GUILayout.Label("FieldName不存在");
-            }
-            GUILayout.EndHorizontal();
-        }
-
-        /// <summary>
-        /// 获得当前编辑的角色属性数据
-        /// </summary>
-        /// <param name="index">对应属性的编号</param>
-        /// <param name="text">获取的属性数据，获取失败则为空</param>
-        /// <returns>成功获取返回True，否则返回false</returns>
-        public bool GetLastActorData(int index, out string text)
-        {
-            if (lastActorDate != null && lastActorDate.TryGetValue(index, out text))
-            {
-                return true;
-            }
-            text = "";
-            return false;
-        }
-
-        /// <summary>
-        /// 将游戏数值同步到所有属性修改框里
-        /// </summary>
-        /// <param name="dateFileInstance">DateFile实例</param>
-        /// <param name="actorId">需要同步数据的角色Id</param>
-        public void UpdateAllFields(DateFile dateFileInstance, ActorMenu actorMenuInstance, int actorId)
-        {
-            lastDateFile = dateFileInstance;
-            lastActorMenu = actorMenuInstance;
-            if (lastDateFile == null || lastDateFile.actorsDate == null || !lastDateFile.actorsDate.TryGetValue(actorId, out lastActorDate))
-            {
-                foreach (var resid in activeFieldsResid)
-                {
-                    fieldValues.Remove(resid);
-                }
-                lastActorId = -1;
-            }
-            else if (actorId != lastActorId)
-            {
-                lastActorId = actorId;
-                foreach (var resid in activeFieldsResid)
-                {
-                    FetchFieldValue(lastDateFile, lastActorMenu, lastActorDate, resid);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 重置所有修改框的状态，需要配合UpdateAllFields()才能更新数值
-        /// </summary>
-        public void ResetAllFields()
-        {
-            lastActorId = -1;
-        }
-
-        /// <summary>
-        /// 将游戏数值同步到属性修改框里
-        /// </summary>
-        /// <param name="resid">对应属性的编号</param>
-        private void UpdateField(int resid)
-        {
-            if (lastDateFile == null || lastActorDate == null)
-            {
-                fieldValues.Remove(resid);
-                return;
-            }
-            else
-            {
-                FetchFieldValue(lastDateFile, lastActorMenu, lastActorDate, resid);
-            }
-        }
-
-        private void FetchFieldValue(DateFile dateFileInstance, ActorMenu actorMenuInstance, Dictionary<int, string> actorDate, int resid)
-        {
-            switch (resid)
-            {
-                case -1:
-                    fieldValues[resid] = dateFileInstance.gongFaExperienceP.ToString();
-                    break;
-                case 12:
-                    if(actorMenuInstance != null)
-                    {
-                        fieldValues[resid] = actorMenuInstance.Health(lastActorId).ToString();
-                    }
-                    else
-                    {
-                        fieldValues.Remove(resid);
-                    }
-                    break;
-                default:
-                    if(!actorDate.TryGetValue(resid, out string text))
-                    {
-                        if(!dateFileInstance.presetActorDate.TryGetValue(lastActorId, out Dictionary<int,string> presetActorData) || !presetActorData.TryGetValue(resid, out text))
-                        {
-                            text = "0";
-                        }
-                    }
-                    fieldValues[resid] = text;
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// 将修改框里的数据设定为游戏数据
-        /// </summary>
-        /// <param name="resid">对应属性的编号</param>
-        private void SetFieldValue(int resid)
-        {
-            if (lastDateFile != null && lastActorId != -1 && fieldValues.TryGetValue(resid, out string text))
-            {
-                if (TryParseInt(text, out int value) && value >= 0)
-                {
-                    SetValueHelper(resid, text, value);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 将修改框里的数据设定为游戏数据
-        /// </summary>
-        /// <param name="resid">对应属性的编号</param>
-        /// <param name="min">数值最小值</param>
-        /// <param name="max">数值最大值</param>
-        private void SetFieldValue(int resid, int min, int max)
-        {
-            if (lastDateFile != null && lastActorId != -1 && fieldValues.TryGetValue(resid, out string text))
-            {
-                if (TryParseInt(text, out int value) && value >= min && value <= max)
-                {
-                    SetValueHelper(resid, text, value);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 为了简化代码，将设定值的部分另写一个方法
-        /// </summary>
-        /// <param name="resid">对应属性的编号</param>
-        /// <param name="text">目标数值的字符串形式</param>
-        /// <param name="value">目标数值的整型形式，值必须与text相同</param>
-        private void SetValueHelper(int resid, string text, int value)
-        {
-            switch (resid)
-            {
-                case -1:
-                    lastDateFile.gongFaExperienceP = value;
-                    break;                
-                default:
-                    lastActorDate[resid] = text;
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// 治疗解毒
-        /// </summary>
+        /// <param name="instance">DateFile实例</param>
         /// <param name="actorId">要处理的角色ID</param>
         /// <param name="func">功能选择，0疗伤，1祛毒，2调理内息</param>
+        /// <param name="battle">是否处理战斗中的伤口、中毒和内息紊乱</param>
         public static void CureHelper(DateFile instance, int actorId, int func, bool battle = true)
         {
             if (instance == null)
@@ -414,15 +63,16 @@ namespace TaiwuEditor
             switch (func)
             {
                 case 0:
-                    if (instance.actorInjuryDate.TryGetValue(actorId, out Dictionary<int,int> injuries))
+                    if (instance.actorInjuryDate != null && instance.actorInjuryDate.TryGetValue(actorId, out Dictionary<int, int> injuries))
                     {
                         List<int> injuryIds = new List<int>(injuries.Keys);
-                        for(int i=0; i< injuryIds.Count; i++)
+                        for (int i = 0; i < injuryIds.Count; i++)
                         {
                             injuries.Remove(injuryIds[i]);
                         }
                     }
-                    if(battle && instance.ActorIsInBattle(actorId) != 0 && instance.battleActorsInjurys.TryGetValue(actorId, out Dictionary<int, int[]> battleInjuries))
+                    if (battle && instance.ActorIsInBattle(actorId) != 0 && instance.battleActorsInjurys != null
+                        && instance.battleActorsInjurys.TryGetValue(actorId, out Dictionary<int, int[]> battleInjuries))
                     {
                         List<int> battleInjuriesIds = new List<int>(battleInjuries.Keys);
                         for (int i = 0; i < battleInjuriesIds.Count; i++)
@@ -432,16 +82,17 @@ namespace TaiwuEditor
                     }
                     break;
                 case 1:
-                    if (instance.actorsDate.TryGetValue(actorId, out Dictionary<int,string> actorData))
+                    if (instance.actorsDate != null && instance.actorsDate.TryGetValue(actorId, out Dictionary<int, string> actorData))
                     {
                         for (int i = 0; i < 6; i++)
                         {
                             actorData[i + 51] = "0";
                         }
                     }
-                    if (battle && instance.ActorIsInBattle(actorId) != 0 && instance.battleActorsPoisons.TryGetValue(actorId, out int[] poisons))
+                    if (battle && instance.ActorIsInBattle(actorId) != 0 && instance.battleActorsPoisons != null
+                        && instance.battleActorsPoisons.TryGetValue(actorId, out int[] poisons))
                     {
-                        for(int i=0; i< poisons.Length; i++)
+                        for (int i = 0; i < poisons.Length; i++)
                         {
                             poisons[i] = 0;
                         }
@@ -452,7 +103,7 @@ namespace TaiwuEditor
                     {
                         actorData[39] = "0";
                     }
-                    if(battle && instance.ActorIsInBattle(actorId) != 0)
+                    if (battle && instance.ActorIsInBattle(actorId) != 0 && instance.battleActorsMianQi != null)
                     {
                         instance.battleActorsMianQi[actorId] = 0;
                     }
@@ -460,9 +111,16 @@ namespace TaiwuEditor
             }
         }
 
-        public static int LifeDateHelper(DateFile instance, int resid, int actorid)
+        /// <summary>
+        /// 获取角色生活信息
+        /// </summary>
+        /// <param name="instance">DateFile实例</param>
+        /// <param name="resid">生活信息Id</param>
+        /// <param name="actorid">角色ID</param>
+        /// <returns></returns>
+        public static int LifeDateHelper(DateFile instance, int actorid, int resid)
         {
-            if (instance.actorLife == null || !instance.actorLife.ContainsKey(actorid))
+            if (instance == null || instance.actorLife == null || !instance.actorLife.ContainsKey(actorid))
             {
                 return -1;
             }
@@ -471,24 +129,24 @@ namespace TaiwuEditor
             return (result == -1) ? 0 : result;
         }
 
-
         /// <summary>
         /// 设置人物相枢入邪值
         /// </summary>
         /// <param name="instance">DateFile实例</param>
         /// <param name="actorid">角色ID</param>
         /// <param name="value">目标入邪值</param>
-        // 设置人物相枢入邪值, 根据DateFile.SetActorXXChange重写
+        // 根据DateFile.SetActorXXChange重写
         public static void SetActorXXValue(DateFile instance, int actorid, int value)
         {
-            if (instance.actorLife == null || !instance.actorLife.ContainsKey(actorid))
+            if (instance == null || instance.actorLife == null || !instance.actorLife.ContainsKey(actorid))
             {
                 return;
             }
             value = Mathf.Max(value, 0);
             // 清空角色相支持度缓存
             instance.AICache_ActorPartValue.Remove(actorid);
-            instance.AICache_PartValue.Remove(instance.ParseInt(instance.GetActorDate(actorid, 19, false)));
+            instance.AICache_PartValue.Remove(int.Parse(instance.GetActorDate(actorid, 19, false)));
+            // 设置入邪值
             if (instance.HaveLifeDate(actorid, 501))
             {
                 instance.actorLife[actorid][501][0] = Mathf.Max(value, 0);
@@ -500,10 +158,11 @@ namespace TaiwuEditor
                     Mathf.Max(value, 0)
                 });
             }
+            // 入魔
             if (value >= 200)
             {
                 // 是否是敌方阵营（如相枢）
-                if (instance.ParseInt(instance.GetActorDate(actorid, 6, false)) == 0)
+                if (int.Parse(instance.GetActorDate(actorid, 6, false)) == 0)
                 {
                     // 化魔之后加入敌方
                     instance.actorsDate[actorid][6] = "1";
@@ -511,6 +170,7 @@ namespace TaiwuEditor
                     List<int> actorAtPlace = instance.GetActorAtPlace(actorid);
                     if (actorAtPlace != null)
                     {
+                        // 添加角色经历
                         PeopleLifeAI.instance.AISetMassage(84, actorid, actorAtPlace[0], actorAtPlace[1], null, -1, true);
                     }
                 }
@@ -520,8 +180,9 @@ namespace TaiwuEditor
             }
             else
             {
-                // 不为敌
+                // 转换为非敌方阵营
                 instance.actorsDate[actorid].Remove(6);
+                // 入邪
                 if (value >= 100)
                 {
                     // 相枢入邪特性
@@ -542,22 +203,21 @@ namespace TaiwuEditor
         /// </summary>
         /// <param name="readbookid">书籍ID</param>
         /// <param name="studyskilltyp">技能类型</param>
-        /// <param name="counter">每次快速读书篇数</param>
+        /// <param name="counter">每次快速读书篇数（只针对需要平衡正逆练的功法书，技艺书还是一次全读完）</param>
         // 快速读书 Highly Inspired by ReadBook.GetReadBooty()
-        // counter: 每次快速读书篇数（只针对需要平衡正逆练的功法书，技艺书还是一次全读完）
         public static void EasyReadV2(int readbookid, int studyskilltyp, int counter)
         {
             int mainActorId = DateFile.instance.MianActorID();
             // 功法id
-            int gongFaId = DateFile.instance.ParseInt(DateFile.instance.GetItemDate(readbookid, 32, true));
+            int gongFaId = int.Parse(DateFile.instance.GetItemDate(readbookid, 32, true));
             // 可能代表“每页是否是残卷”
             int[] bookPage = DateFile.instance.GetBookPage(readbookid);
             for (int j = 0; j < 10; j++) // 每书10篇
             {
                 //int experienceGainRatio = 100; // 读书获得历练加成比例
                 // 获得的历练
-                // int experienceGainPerPage = DateFile.instance.ParseInt(DateFile.instance.GetItemDate(HomeSystem.instance.readBookId, 34, true)) * experienceGainRatio / 100; 
-                int experienceGainPerPage = DateFile.instance.ParseInt(DateFile.instance.GetItemDate(readbookid, 34, true)) * 100 / 100;
+                // int experienceGainPerPage = int.Parse(DateFile.instance.GetItemDate(HomeSystem.instance.readBookId, 34, true)) * experienceGainRatio / 100; 
+                int experienceGainPerPage = int.Parse(DateFile.instance.GetItemDate(readbookid, 34, true)) * 100 / 100;
                 // 读的是功法
                 if (studyskilltyp == 17)
                 {
@@ -571,9 +231,9 @@ namespace TaiwuEditor
                     if (studyDegree != 1 && studyDegree > -100)
                     {
                         // 每篇读完应获得的遗惠
-                        int scoreGain = DateFile.instance.ParseInt(DateFile.instance.gongFaDate[gongFaId][2]);
+                        int scoreGain = int.Parse(DateFile.instance.gongFaDate[gongFaId][2]);
                         // 是否为手抄
-                        int isShouChao = DateFile.instance.ParseInt(DateFile.instance.GetItemDate(readbookid, 35, true));
+                        int isShouChao = int.Parse(DateFile.instance.GetItemDate(readbookid, 35, true));
                         DateFile.instance.ChangeActorGongFa(mainActorId, gongFaId, 0, 0, isShouChao, true);
                         if (isShouChao != 0)
                         {
@@ -620,7 +280,7 @@ namespace TaiwuEditor
                     if (studyDegree != 1 && studyDegree > -100)
                     {
                         // 每篇读完应获得的遗惠
-                        int scoreGain = DateFile.instance.ParseInt(DateFile.instance.skillDate[gongFaId][2]);
+                        int scoreGain = int.Parse(DateFile.instance.skillDate[gongFaId][2]);
                         // 若还未习得该项技艺
                         if (!DateFile.instance.actorSkills.ContainsKey(gongFaId))
                         {
@@ -652,7 +312,15 @@ namespace TaiwuEditor
             }
         }
 
-        // 终点事件设置，Inspired by DateFile.EventSetup()
+        /// <summary>
+        /// 终点事件设置
+        /// </summary>
+        /// <param name="endeventid">奇遇终点事件ID</param>
+        /// <param name="storysystempartid">当前奇遇发生的地点区域ID</param>
+        /// <param name="storysystemplaceid">当前奇遇发生的地点位置ID</param>
+        /// <param name="storysystemstoryId">当前奇遇ID</param>
+        /// <returns>是否成功</returns>
+        // Inspired by DateFile.EventSetup()
         public static bool EventSetup(int endeventid, int storysystempartid, int storysystemplaceid, int storysystemstoryId)
         {
             if (endeventid != 0)
@@ -674,7 +342,7 @@ namespace TaiwuEditor
                             if (!_actorFamily.Contains(_actorId) && DateFile.instance.HaveLifeDate(_actorId, 710))
                             {
                                 // 选出战力最强的拿到书与主角在终点决战
-                                int _score = DateFile.instance.ParseInt(DateFile.instance.GetActorDate(_actorId, 993, false));
+                                int _score = int.Parse(DateFile.instance.GetActorDate(_actorId, 993, false));
                                 if (_score > _getBookActorScore)
                                 {
                                     _getBookActorScore = _score;
@@ -742,7 +410,7 @@ namespace TaiwuEditor
                         DateFile.instance.SetEvent(new int[4]
                         {
                             0,
-                            7010 + DateFile.instance.ParseInt(DateFile.instance.GetActorDate(_storyValue, 19, addValue: false)) * 100,
+                            7010 + int.Parse(DateFile.instance.GetActorDate(_storyValue, 19, addValue: false)) * 100,
                             endeventid,
                             _storyValue
                         }, true, true);
@@ -767,9 +435,160 @@ namespace TaiwuEditor
             }
         }
 
+        /// <summary>
+        /// 字符串转为整型
+        /// </summary>
+        /// <param name="text">字符串</param>
+        /// <param name="integer">输出的整型</param>
+        /// <returns>是否成功</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool TryParseInt(string text, out int integer)
+            => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out integer);
+    }
+
+    static class ExtendedMethods
+    {
+        /// <summary>
+        /// 尝试获取两个嵌套字典中位于内部的字典的值
+        /// </summary>
+        /// <typeparam name="T">嵌套字典的类型</typeparam>
+        /// <typeparam name="Tkey1">外部字典键的类型</typeparam>
+        /// <typeparam name="Tkey2">内部字典键的类型</typeparam>
+        /// <typeparam name="TValue1">内部字典的类型</typeparam>
+        /// <typeparam name="TValue2">内部字典值的类型</typeparam>
+        /// <param name="iDictionary">外部字典</param>
+        /// <param name="key1">外部字典的键值</param>
+        /// <param name="key2">对应外部字典键值的内部字典的键值</param>
+        /// <param name="value">内部字典的键值对应的值，失败则取默认值</param>
+        /// <param name="iDictionaryValue">只为省略中括号泛型类型推断方便，无实际意义，只要类型与内部字典类型相同即可</param>
+        /// <returns>True：成功；False:失败，value取类型默认值</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryGetValue<T, Tkey1, Tkey2, TValue1, TValue2>(this T iDictionary, Tkey1 key1, Tkey2 key2, out TValue2 value, TValue1 iDictionaryValue = default)
+            where T : IDictionary<Tkey1, TValue1>
+            where TValue1 : IDictionary<Tkey2, TValue2>
         {
-            return int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out integer);
+            value = default;
+            return iDictionary.TryGetValue(key1, out var value1) && value1.TryGetValue(key2, out value);
         }
+
+        /// <summary>
+        /// 尝试获取两个嵌套字典中位于内部的字典的值，并转换为整型
+        /// </summary>
+        /// <typeparam name="T">嵌套字典的类型</typeparam>
+        /// <typeparam name="Tkey1">外部字典键的类型</typeparam>
+        /// <typeparam name="Tkey2">内部字典键的类型</typeparam>
+        /// <typeparam name="TValue1">内部字典的类型</typeparam>
+        /// <param name="iDictionary">外部字典</param>
+        /// <param name="key1">外部字典的键值</param>
+        /// <param name="key2">对应外部字典键值的内部字典的键值</param>
+        /// <param name="value">内部字典的键值转换为整型，失败则为-1</param>
+        /// <param name="iDictionaryValue">只为省略中括号泛型类型推断方便，无实际意义，只要类型与内部字典类型相同即可</param>
+        /// <returns>True：成功；False:失败</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryGetValue<T, Tkey1, Tkey2, TValue1>(this T iDictionary, Tkey1 key1, Tkey2 key2, out int value, TValue1 iDictionaryValue = default)
+            where T : IDictionary<Tkey1, TValue1>
+            where TValue1 : IDictionary<Tkey2, string>
+        {
+            value = -1;
+            return iDictionary.TryGetValue(key1, out var value1) && value1.TryGetValue(key2, out string text) && Helper.TryParseInt(text, out value);
+        }
+
+        /// <summary>
+        /// 尝试根据键值获取值,并将值转换为整
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <typeparam name="Tkey"></typeparam>
+        /// <typeparam name="TValue"></typeparam>
+        /// <param name="iDictionary">继承iDictionary的类</param>
+        /// <param name="key">键值</param>
+        /// <param name="value">值，若失败则为-1</param>
+        /// <returns>True获取成功，False获取失败</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool TryGetValue<T, Tkey>(this T iDictionary, Tkey key, out int value) where T : IDictionary<Tkey, string>
+        {
+            value = -1;
+            return iDictionary.TryGetValue(key, out string text) && Helper.TryParseInt(text, out value);
+        }
+    }
+
+    // 借用Sth4nothing的反射类
+    static class ReflectionMethod
+    {
+        private const BindingFlags Flags = BindingFlags.Instance
+                                           | BindingFlags.Static
+                                           | BindingFlags.NonPublic
+                                           | BindingFlags.Public;
+
+        /// <summary>
+        /// 调用实例中的方法并返回结果
+        /// </summary>
+        /// <typeparam name="TSource">实例的类型</typeparam>
+        /// <typeparam name="TResult">返回值类型</typeparam>
+        /// <param name="instance">类实例</param>
+        /// <param name="method">类实例方法的名称</param>
+        /// <param name="args">类实例方法的参数</param>
+        /// <returns>方法返回值</returns>
+        public static TResult Invoke<TSource, TResult>(this TSource instance, string method, params object[] args)
+            => (TResult)typeof(TSource).GetMethod(method, Flags)?.Invoke(instance, args);
+
+        /// <summary>
+        /// 调用实例中的方法
+        /// </summary>
+        /// <typeparam name="T">实例的类型</typeparam>
+        /// <param name="instance">类实例</param>
+        /// <param name="method">类实例方法的名称</param>
+        /// <param name="args">类实例方法的参数</param>
+        public static void Invoke<T>(this T instance, string method, params object[] args)
+            => typeof(T).GetMethod(method, Flags)?.Invoke(instance, args);
+
+        /// <summary>
+        /// 调用实例中的方法并返回结果
+        /// </summary>
+        /// <typeparam name="T">实例的类型</typeparam>
+        /// <param name="instance">类实例</param>
+        /// <param name="method">类实例方法的名称</param>
+        /// <param name="argTypes">类实例方法的参数的类型</param>
+        /// <param name="args">类实例方法的参数</param>
+        /// <returns>方法返回值</returns>
+        public static object Invoke<T>(this T instance, string method, System.Type[] argTypes, params object[] args)
+        {
+            argTypes = argTypes ?? new System.Type[0];
+            var methods = typeof(T).GetMethods(Flags).Where(m =>
+            {
+                if (m.Name != method)
+                    return false;
+                return m.GetParameters()
+                    .Select(p => p.ParameterType)
+                    .SequenceEqual(argTypes);
+            });
+
+            if (methods.Count() != 1)
+            {
+                throw new AmbiguousMatchException("cannot find method to invoke");
+            }
+
+            return methods.First()?.Invoke(instance, args);
+        }
+
+        /// <summary>
+        /// 获取类实例中域(Field)的值
+        /// </summary>
+        /// <typeparam name="TSource">实例的类型</typeparam>
+        /// <typeparam name="TResult">返回值类型</typeparam>
+        /// <param name="instance">类实例</param>
+        /// <param name="field"></param>
+        /// <returns>域的值</returns>
+        public static TResult GetValue<TSource, TResult>(this TSource instance, string field)
+            => (TResult)typeof(TSource).GetField(field, Flags)?.GetValue(instance);
+
+        /// <summary>
+        /// 获取类实例中域(Field)的值
+        /// </summary>
+        /// <typeparam name="T">实例的类型</typeparam>
+        /// <param name="instance">类实例</param>
+        /// <param name="field">域名称</param>
+        /// <returns>域的值</returns>
+        public static object GetValue<T>(this T instance, string field)
+            => typeof(T).GetField(field, Flags)?.GetValue(instance);
     }
 }
