@@ -304,6 +304,11 @@
 			"Id": "TaiwuEditor",
 			"Version": "1.0.10.3",
 			"DownloadUrl": "https://github.com/ciwei100000/Taiwu_mods/releases/download/release190630/TaiwuEditor-1.0.10.3.zip"
+		},
+		{
+			"Id": "GongFaBook",
+			"Version": "1.0.9",
+			"DownloadUrl": "https://github.com/ciwei100000/Taiwu_mods/releases/download/release190630/GongFaBook-1.0.9.zip"
 		}
 	]
 }
