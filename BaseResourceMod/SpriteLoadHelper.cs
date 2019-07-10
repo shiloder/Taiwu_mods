@@ -163,7 +163,7 @@ namespace BaseResourceMod
                 {
                     if (Array.FindIndex(spriteGroup, name => name == spriteName) >= 0)
                     {
-                        Main.customSpriteInfosDic[spriteName] = (filePath, null); //c# 7.x valuetuple
+                        Main.customSpriteInfosDic[spriteName] = (filePath, null);
                         Main.Logger.Log($"[Texture] Injected sprite from {filePath} to spriteGroup {spriteTyp} sprite name {spriteName}");
                     }
                 }
@@ -202,7 +202,7 @@ namespace BaseResourceMod
                 {
                     if (Array.FindIndex(spriteGroup, name => name == spriteName) >= 0)
                     {
-                        Main.customSpriteInfosDic[spriteName] = (filePath, null); //c# 7.x valuetuple
+                        Main.customSpriteInfosDic[spriteName] = (filePath, null);
                         Main.Logger.Log($"[Texture] Injected sprite from {filePath} to spriteGroup {spriteTyp} sprite name {spriteName}");
                     }
                 }
@@ -242,7 +242,7 @@ namespace BaseResourceMod
                 {
                     if (Array.FindIndex(list[cates[2]], name => name == spriteName) >= 0)
                     {
-                        Main.customSpriteInfosDic[spriteName] = (filePath, null); //c# 7.x valuetuple
+                        Main.customSpriteInfosDic[spriteName] = (filePath, null);
                         Main.Logger.Log($"[Texture] Injected sprite from {filePath} to spriteGroup {spriteTyp} sprite name {spriteName}");
                     }
                 }
@@ -356,7 +356,7 @@ namespace BaseResourceMod
                 if (files.Length != 0)
                 {
                     // 输出当前目录及其中png文件路径
-                    yield return (currentDir, files); //c# 7.x valuetuple
+                    yield return (currentDir, files);
                 }
             }
         }

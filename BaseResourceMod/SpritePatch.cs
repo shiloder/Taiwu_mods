@@ -1,6 +1,5 @@
 ﻿using Harmony12;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
@@ -119,7 +118,7 @@ namespace BaseResourceMod
                     // 若没有外部贴图则缓存则从外部读取
                     sprite = CreateSpriteFromImage(spriteInfo.Item1);
                     // 将外部贴图存入缓存，注意ValueTuple是Value Type
-                    Main.customSpriteInfosDic[spriteName] = (spriteInfo.Item1, sprite); 
+                    Main.customSpriteInfosDic[spriteName] = (spriteInfo.Item1, sprite);
                 }
                 else
                 {
